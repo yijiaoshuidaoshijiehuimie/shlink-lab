@@ -88,3 +88,5 @@ docker run --rm -v shlink-lab_shlink-db:/var/lib/postgresql/data -v $(pwd):/back
 - 访问统计功能：正常
 - 自定义短码功能：正常
 - 容器持久化测试：正常
+## 说明
+由于国内Docker镜像源限制，python:3.12-slim镜像无法拉取，Web服务采用本地Python环境运行，已提供Dockerfile供参考。
