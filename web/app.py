@@ -3,14 +3,8 @@ import requests
 
 app = Flask(__name__)
 
-# Shlink API配置
-SHLINK_API_URL = "http://localhost:8080/rest/v3"
-SHLINK_API_KEY = "test_key_123456789abcdef"
-
-HEADERS = {
-    "X-Api-Key": SHLINK_API_KEY,
-    "Content-Type": "application/json"
-}
+SHLINK_API_URL = "http://localhost:8080/rest"
+API_KEY = "test_key_123456789abcdef"
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -18,72 +12,56 @@ HTML_TEMPLATE = """
 <head>
     <title>短网址管理系统</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 0 20px; }
-        h1 { color: #333; }
-        form { margin: 20px 0; display: flex; gap: 10px; }
-        input[type="url"] { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ddd; border-radius: 4px; }
-        button { padding: 10px 20px; font-size: 16px; background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #1557b0; }
-        .error { color: red; margin: 10px 0; }
-        .short-url-item { padding: 15px; border: 1px solid #eee; margin: 10px 0; border-radius: 4px; }
-        .short-url-item a { color: #1a73e8; }
-        .stats { color: #666; font-size: 14px; margin-top: 5px; }
+        body { font-family: Arial; max-width: 800px; margin: 20px auto; padding: 0 20px; }
+        .input-group { margin-bottom: 15px; }
+        input { padding: 10px; width: 70%; font-size: 16px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .short-url-item { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
     </style>
 </head>
 <body>
     <h1>短网址管理系统</h1>
-    
-    <form method="POST" action="/create">
-        <input type="url" name="long_url" placeholder="输入长URL" required>
+    <form method="POST">
+        <div class="input-group">
+            <input type="text" name="long_url" placeholder="输入长URL" required>
+        </div>
+        <div class="input-group">
+            <input type="text" name="custom_slug" placeholder="自定义短码（可选）">
+        </div>
         <button type="submit">生成短链</button>
     </form>
-    
-    {% if error %}
-    <div class="error">错误：{{ error }}</div>
-    {% endif %}
-    
     <h2>短链列表</h2>
     {% for item in short_urls %}
     <div class="short-url-item">
-        <div>短链：<a href="{{ item.shortUrl }}" target="_blank">{{ item.shortUrl }}</a></div>
-        <div>长链：{{ item.longUrl }}</div>
-        <div class="stats">访问次数：{{ item.visitsSummary.total }}</div>
+        <p>短链: <a href="{{ item.shortUrl }}" target="_blank">{{ item.shortUrl }}</a></p>
+        <p>长链: {{ item.longUrl }}</p>
+        <p>访问次数: {{ item.visitsSummary.total }}</p>
     </div>
     {% endfor %}
 </body>
 </html>
 """
 
-@app.route('/')
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    error = request.args.get('error', '')
-    short_urls = []
-    try:
-        resp = requests.get(f"{SHLINK_API_URL}/short-urls", headers=HEADERS, params={"itemsPerPage": 50})
-        if resp.status_code == 200:
-            data = resp.json()
-            short_urls = data.get('shortUrls', {}).get('data', [])
-    except Exception as e:
-        error = str(e)
-    return render_template_string(HTML_TEMPLATE, error=error, short_urls=short_urls)
-
-@app.route('/create', methods=['POST'])
-def create():
-    long_url = request.form.get('long_url', '')
-    if not long_url:
-        return redirect('/?error=请输入URL')
-    try:
-        resp = requests.post(
-            f"{SHLINK_API_URL}/short-urls",
-            headers=HEADERS,
-            json={"longUrl": long_url}
-        )
-        if resp.status_code == 200:
+    if request.method == 'POST':
+        long_url = request.form['long_url']
+        custom_slug = request.form.get('custom_slug', '').strip()
+        
+        headers = {'X-Api-Key': API_KEY, 'Content-Type': 'application/json'}
+        data = {'longUrl': long_url}
+        if custom_slug:
+            data['customSlug'] = custom_slug
+        
+        response = requests.post(f"{SHLINK_API_URL}/v3/short-urls", json=data, headers=headers)
+        if response.status_code == 201:
             return redirect('/')
-        else:
-            return redirect(f'/?error=创建失败：{resp.text}')
-    except Exception as e:
-        return redirect(f'/?error={str(e)}')
+    
+    headers = {'X-Api-Key': API_KEY}
+    response = requests.get(f"{SHLINK_API_URL}/v3/short-urls?paginateBy=10", headers=headers)
+    short_urls = response.json().get('shortUrls', {}).get('data', [])
+    
+    return render_template_string(HTML_TEMPLATE, short_urls=short_urls)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8501, debug=False)
+    app.run(port=8501, debug=True)
